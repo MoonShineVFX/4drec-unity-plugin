@@ -59,7 +59,7 @@ public class FourdRecPlayer : MonoBehaviour
         Mesh mesh;
         if (!hasBuild)
         {
-            assetBundle = AssetBundle.LoadFromFile(Application.streamingAssetsPath + "/bundles/fourdFramesnlz");
+            assetBundle = AssetBundle.LoadFromFile(Application.streamingAssetsPath + "/fourd/testload_ten");
             _meshRenderer = gameObject.AddComponent<MeshRenderer>();
             _meshRenderer.material = new Material(Shader.Find("Unlit/Texture"));
             _meshFilter = gameObject.AddComponent<MeshFilter>();
@@ -77,7 +77,7 @@ public class FourdRecPlayer : MonoBehaviour
         }
         
         // Load fourdRecFrame
-        FourdRecFrame frame = assetBundle.LoadAsset<FourdRecFrame>("Assets/Resources/testFramesNlz/001703.asset");
+        FourdRecFrame frame = assetBundle.LoadAsset<FourdRecFrame>("001703.asset");
 
         // Get texture
         Texture2D texture = new Texture2D(frame.textureSize, frame.textureSize, frame.textureFormat, false);

@@ -9,6 +9,8 @@ using UnityEditor;
 public class FourdRecImporter : MonoBehaviour
 {
     private const int TextureSize = 1024;
+    private const string SavePath = "Assets/Resources/fourd";
+    private const string AbPath = "Assets/StreamingAssets/fourd";
 
     [MenuItem("4DREC/Import 4DF file")]
     static void Import4dfFile()
@@ -16,29 +18,16 @@ public class FourdRecImporter : MonoBehaviour
         ImportFolder();
     }
     
-    [MenuItem("4DREC/Build Bundles")]
-    static void BuildAssetBundles()
-    {
-        string assetBundleDirectory = "Assets/StreamingAssets/bundles";
-        if(!Directory.Exists(assetBundleDirectory))
-        {
-            Directory.CreateDirectory(assetBundleDirectory);
-        }
-        BuildPipeline.BuildAssetBundles(assetBundleDirectory, 
-            BuildAssetBundleOptions.ChunkBasedCompression, 
-            BuildTarget.StandaloneWindows);
-    }
-
     static void ImportFolder()
     {
         string path = EditorUtility.OpenFolderPanel("Import 4DREC file", "", "");
+        string shotName = Path.GetFileName(path);
         string[] files = Directory.GetFiles(path);
 
         if (files.Length == 0) return;
         
-        string savePath = $"{Application.dataPath}/Resources/fourd";
-        if (!Directory.Exists(savePath)) Directory.CreateDirectory(savePath);
-        
+        Directory.CreateDirectory(SavePath);
+        string[] assetPaths = new string[files.Length];
         for (int i = 0; i < files.Length; i++)
         {
             string file = files[i];
@@ -47,14 +36,19 @@ public class FourdRecImporter : MonoBehaviour
                 file,
                 (float)i / files.Length
                 );
-            Convert4DF(file, savePath);
+            assetPaths[i] = Convert4DF(file);
         }
         EditorUtility.ClearProgressBar();
         
         AssetDatabase.Refresh();
+        
+        BuildAssetBundle(assetPaths, shotName);
+
+        AssetDatabase.DeleteAsset(SavePath);
+        AssetDatabase.Refresh();
     }
 
-    static void Convert4DF(string importPath, string savePath)
+    static string Convert4DF(string importPath)
     {
         // Get raw buffer
         byte[] fileBuffer = File.ReadAllBytes(importPath);
@@ -107,11 +101,40 @@ public class FourdRecImporter : MonoBehaviour
         frame.positionDataArray = new Vector3[verticesArrayCount];
         FourdUtility.ConvertFromBytes(positionBuffer, frame.positionDataArray);
 
-        AssetDatabase.CreateAsset(frame, $"Assets/Resources/fourd/{Path.GetFileNameWithoutExtension(importPath)}.asset");
+        string assetPath = $"{SavePath}/{Path.GetFileNameWithoutExtension(importPath)}.asset";
+        AssetDatabase.CreateAsset(frame, assetPath);
         AssetDatabase.SaveAssets();
 
         // Return
         DestroyImmediate(sourceTexture);
+        return assetPath;
+    }
+
+    static void BuildAssetBundle(string[] assetPaths, string shotName)
+    {
+        AssetBundleBuild bundleBuild = new AssetBundleBuild();
+        bundleBuild.assetBundleName = shotName;
+
+        string[] addressableNames = new string[assetPaths.Length];
+        for (int i = 0; i < assetPaths.Length; i++)
+        {
+            string assetPath = assetPaths[i];
+            string fileName = Path.GetFileName(assetPath);
+            assetPaths[i] = assetPath;
+            addressableNames[i] = fileName;
+        }
+
+        bundleBuild.addressableNames = addressableNames;
+        bundleBuild.assetNames = assetPaths;
+
+        Directory.CreateDirectory(AbPath);
+
+        BuildPipeline.BuildAssetBundles(
+            AbPath,
+            new []{bundleBuild},
+            BuildAssetBundleOptions.ChunkBasedCompression, 
+            BuildTarget.StandaloneWindows
+            );
     }
 }
 #endif
