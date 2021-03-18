@@ -1,40 +1,64 @@
 using System;
-using System.Collections;
-using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
-using UnityEditor;
-using UnityEditor.AssetImporters;
 using UnityEngine;
+using UnityEditor;
 
 
-[ScriptedImporter(1, "4df")]
-public class FourdRecImporter : ScriptedImporter
+#if UNITY_EDITOR
+public class FourdRecImporter : MonoBehaviour
 {
-    public int textureResize = 1024;
+    private const int TextureSize = 1024;
 
-    public override void OnImportAsset(AssetImportContext ctx)
+    [MenuItem("4DREC/Import 4DF file")]
+    static void Import4dfFile()
     {
-        // Create asset
-        Debug.LogFormat("Create asset: {0}", ctx.assetPath);
-        var profiler = new FourdProfiler();
-        
-        FourdRecData data = ConvertFourdRecFrameToFourdRData(ctx.assetPath);
-        
-        profiler.Stop("Total");
-
-        // Apply
-        EditorUtility.SetDirty(this);
-        ctx.AddObjectToAsset("4drec_frame", data);
-        ctx.SetMainObject(data);
+        ImportFolder();
     }
     
-    FourdRecData ConvertFourdRecFrameToFourdRData(string fourdRecFramePath)
+    [MenuItem("4DREC/Build Bundles")]
+    static void BuildAssetBundles()
+    {
+        string assetBundleDirectory = "Assets/StreamingAssets/bundles";
+        if(!Directory.Exists(assetBundleDirectory))
+        {
+            Directory.CreateDirectory(assetBundleDirectory);
+        }
+        BuildPipeline.BuildAssetBundles(assetBundleDirectory, 
+            BuildAssetBundleOptions.ChunkBasedCompression, 
+            BuildTarget.StandaloneWindows);
+    }
+
+    static void ImportFolder()
+    {
+        string path = EditorUtility.OpenFolderPanel("Import 4DREC file", "", "");
+        string[] files = Directory.GetFiles(path);
+
+        if (files.Length == 0) return;
+
+        Directory.CreateDirectory($"{Application.dataPath}/Resources/testFramesNlz");
+        
+        for (int i = 0; i < files.Length; i++)
+        {
+            string file = files[i];
+            EditorUtility.DisplayProgressBar(
+                "Import Files", 
+                file,
+                (float)i / files.Length
+                );
+            Convert4DF(file);
+        }
+        EditorUtility.ClearProgressBar();
+        
+        AssetDatabase.Refresh();
+    }
+
+    static void Convert4DF(string path)
     {
         var profiler = new FourdProfiler();
         // Get raw buffer
-        byte[] fileBuffer = File.ReadAllBytes(fourdRecFramePath);
+        byte[] fileBuffer = File.ReadAllBytes(path);
 
         Int32 geoCompressedSize = BitConverter.ToInt32(fileBuffer, 64);
         Int32 textureCompressedSize = BitConverter.ToInt32(fileBuffer, 68);
@@ -75,27 +99,44 @@ public class FourdRecImporter : ScriptedImporter
         // Texture
         Texture2D sourceTexture = new Texture2D(2, 2);
         sourceTexture.LoadImage(compressedTextureBuffer);
-        TextureScale.Bilinear(sourceTexture, textureResize, textureResize);
+        TextureScale.Bilinear(sourceTexture, TextureSize, TextureSize);
         sourceTexture.Compress(false);
         
         profiler.Mark("Texture");
-        // Apply to FourdRecData
-        FourdRecData data = ScriptableObject.CreateInstance<FourdRecData>();
-        data.vertexCount = verticesArrayCount;
-        data.textureSize = textureResize;
-        data.textureFormat = sourceTexture.format;
-        data.CompressedVertices = lz4.Compress(positionBuffer);
-        data.CompressedUvs = lz4.Compress(FourdUtility.ConvertToBytes(uvArray, uvBuffer.Length));
-        data.CompressedTexture = sourceTexture.GetRawTextureData().ToArray();
+        // Write
+        // string assetName = $"{Application.dataPath}/Resources/test/{Path.GetFileNameWithoutExtension(path)}.bytes";
+        // BinaryWriter writer = new BinaryWriter(File.Open(assetName, FileMode.Create));
+        FourdRecFrame frame = ScriptableObject.CreateInstance<FourdRecFrame>();
+        // byte[] positionData = lz4.Compress(positionBuffer);
+        // byte[] uvData = lz4.Compress(FourdUtility.ConvertToBytes(uvArray, uvBuffer.Length));
+        byte[] textureData = sourceTexture.GetRawTextureData().ToArray();
 
-        data.Uvs = $"{data.CompressedUvs.Length / 1024}k";
-        data.Vertices = $"{data.CompressedVertices.Length / 1024}k";
-        data.Texture = $"{data.CompressedTexture.Length / 1024}k";
+        // writer.Write(verticesArrayCount);
+        // writer.Write(TextureSize);
+        // writer.Write(positionData.Length);
+        // writer.Write(uvData.Length);
+        // writer.Write(textureData.Length);
+        // writer.Write(positionData);
+        // writer.Write(uvData);
+        // writer.Write(textureData);
+        // writer.Close();
+        frame.verticesCount = verticesArrayCount;
+        frame.textureSize = TextureSize;
+        // frame.positionData = positionData;
+        // frame.uvData = uvData;
+        frame.textureData = textureData;
+        frame.uvDataArray = uvArray;
+        frame.positionDataArray = new Vector3[verticesArrayCount];
+        FourdUtility.ConvertFromBytes(positionBuffer, frame.positionDataArray);
 
-        profiler.Mark("Create data");
+        AssetDatabase.CreateAsset(frame, $"Assets/Resources/testFramesNlz/{Path.GetFileNameWithoutExtension(path)}.asset");
+        AssetDatabase.SaveAssets();
+        // EditorUtility.FocusProjectWindow();
+        // Selection.activeObject = frame;
+
+        profiler.Mark("Write data");
         // Return
         DestroyImmediate(sourceTexture);
-        return data;
     }
-
 }
+#endif

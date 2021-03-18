@@ -2,6 +2,7 @@ using System;
 using System.Runtime.InteropServices;
 using UnityEngine;
 
+
 public class lz4
 {
     public class API
@@ -70,6 +71,23 @@ public class lz4
             srcHandle.Free();
             dstHandle.Free();
         }
+
+        return result;
+    }
+    
+    public static byte[] Decompress(IntPtr bytePointer, int size)
+    {
+        byte[] result = null;
+        
+        var uncompressSize = API.Unity_LZ4_uncompressSize(bytePointer, size);
+        result = new byte[uncompressSize];
+        var dstHandle = GCHandle.Alloc(result, GCHandleType.Pinned);
+        if (API.Unity_LZ4_decompress(bytePointer, size, dstHandle.AddrOfPinnedObject(), result.Length) != 0)
+        {
+            result = null;
+        }
+
+        dstHandle.Free();
 
         return result;
     }
