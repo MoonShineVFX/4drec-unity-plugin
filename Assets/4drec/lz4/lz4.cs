@@ -1,17 +1,13 @@
 using System;
 using System.Runtime.InteropServices;
-using UnityEngine;
 
 
+#if UNITY_EDITOR
 public class lz4
 {
     public class API
     {
-#if (UNITY_IOS || UNITY_WEBGL) && !UNITY_EDITOR
-        const string LUADLL = "__Internal";
-#else
         const string LUADLL = "lz4";
-#endif
 
         [DllImport(LUADLL, CallingConvention = CallingConvention.Cdecl)]
         public static extern int Unity_LZ4_compress(IntPtr src, int srcSize, IntPtr dst, int dstCapacity, int compressionLevel);
@@ -39,6 +35,7 @@ public class lz4
                 var srcHandle = GCHandle.Alloc(input, GCHandleType.Pinned);
                 var dstHandle = GCHandle.Alloc(buffer, GCHandleType.Pinned);
                 var actualSize = API.Unity_LZ4_compress(srcHandle.AddrOfPinnedObject(), input.Length, dstHandle.AddrOfPinnedObject(), maxSize, compressionLevel);
+
                 if (actualSize > 0)
                 {
                     result = new byte[actualSize];
@@ -74,21 +71,5 @@ public class lz4
 
         return result;
     }
-    
-    public static byte[] Decompress(IntPtr bytePointer, int size)
-    {
-        byte[] result = null;
-        
-        var uncompressSize = API.Unity_LZ4_uncompressSize(bytePointer, size);
-        result = new byte[uncompressSize];
-        var dstHandle = GCHandle.Alloc(result, GCHandleType.Pinned);
-        if (API.Unity_LZ4_decompress(bytePointer, size, dstHandle.AddrOfPinnedObject(), result.Length) != 0)
-        {
-            result = null;
-        }
-
-        dstHandle.Free();
-
-        return result;
-    }
 }
+#endif

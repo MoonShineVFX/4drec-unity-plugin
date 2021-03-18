@@ -1,25 +1,7 @@
-using System.Collections;
-using System.Collections.Generic;
-using System.ComponentModel;
 using UnityEngine;
-
-
+using UnityEngine.Rendering;
 #if UNITY_EDITOR
 using UnityEditor;
-using UnityEditor.AssetImporters;
-
-[ScriptedImporter(1, "4du")]
-public class FourdRecFrameImporter : ScriptedImporter
-{
-    public override void OnImportAsset(AssetImportContext ctx)
-    {
-        // ctx.AddObjectToAsset("main obj", cube);
-        // ctx.SetMainObject(cube);
-
-        Debug.Log("hi, im here");
-        Debug.Log(ctx.assetPath);
-    }
-}
 
 [CustomEditor(typeof(FourdRecFrame))]
 class FourdRecFrameGUI : Editor
@@ -43,9 +25,7 @@ public class FourdRecFrame : ScriptableObject
     [HideInInspector]
     public int textureSize;
     [HideInInspector]
-    public byte[] positionData;
-    [HideInInspector]
-    public byte[] uvData;
+    public TextureFormat textureFormat;
     [HideInInspector]
     public byte[] textureData;
     [HideInInspector]
@@ -55,8 +35,7 @@ public class FourdRecFrame : ScriptableObject
 
     public string GetSizeInfo()
     {
-        int size = (positionData.Length + uvData.Length + textureData.Length) / 1024;
-        return $"Vertex: {verticesCount}\nTex: {textureSize}\nSize: {size}kb";
+        return $"Vertex: {verticesCount}\nTex: {textureSize}";
     }
 }
 

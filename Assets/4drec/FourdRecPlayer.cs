@@ -31,13 +31,6 @@ class FourdRecBuildMeshButton : Editor
         {
             player.CleanMesh();
         }
-
-        // GUI.enabled = true;
-        // player.fourdRecFolder = (UnityEngine.Object)EditorGUILayout.ObjectField(
-        //     "Select Folder", 
-        //     player.fourdRecFolder, 
-        //     typeof(UnityEngine.Object), 
-        //     false);
     }
 
 }
@@ -84,39 +77,14 @@ public class FourdRecPlayer : MonoBehaviour
         }
         
         // Load fourdRecFrame
-        // TextAsset fourdRecFrame = assetBundle.LoadAsset<TextAsset>("Assets/Resources/test/001703.bytes");
         FourdRecFrame frame = assetBundle.LoadAsset<FourdRecFrame>("Assets/Resources/testFramesNlz/001703.asset");
-        // byte[] rawData = fourdRecFrame.bytes;
-        // int vertexCount = BitConverter.ToInt32(rawData, 0);
-        // int textureSize = BitConverter.ToInt32(rawData, 4);
-        // int positionDataSize = BitConverter.ToInt32(rawData, 8);
-        // int uvDataSize = BitConverter.ToInt32(rawData, 12);
-        // int textureDataSize = BitConverter.ToInt32(rawData, 16);
-        //
-        // GCHandle handle = GCHandle.Alloc(rawData, GCHandleType.Pinned);
-        // IntPtr rawPtr = handle.AddrOfPinnedObject();
 
-        // Get data
-        // IntPtr rawVerticesPtr = IntPtr.Add(rawPtr, 20);
-        // byte[] verticesBuffer = lz4.Decompress(frame.positionData);
-        // Vector3[] vertices = new Vector3[frame.verticesCount];
-        // FourdUtility.ConvertFromBytes(verticesBuffer, vertices);
-        
-        // IntPtr rawUvPtr = IntPtr.Add(rawPtr, 20 + positionDataSize);
-        // byte[] uvsBuffer = lz4.Decompress(frame.uvData);
-        // Vector2[] uvs = new Vector2[frame.verticesCount];
-        // FourdUtility.ConvertFromBytes(uvsBuffer, uvs);
-        
         // Get texture
-        Texture2D texture = new Texture2D(frame.textureSize, frame.textureSize, TextureFormat.DXT1, false);
-        // IntPtr rawTexPtr = IntPtr.Add(rawPtr, 20 + positionDataSize + uvDataSize);
+        Texture2D texture = new Texture2D(frame.textureSize, frame.textureSize, frame.textureFormat, false);
         texture.LoadRawTextureData(frame.textureData);
         texture.Apply();
-        
-        // handle.Free();
-        
+
         // Apply data
-        
         Debug.Log(_meshFilter.sharedMesh);
         mesh = _meshFilter.sharedMesh;
         mesh.Clear();
