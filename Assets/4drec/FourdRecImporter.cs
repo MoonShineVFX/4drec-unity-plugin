@@ -2,16 +2,12 @@ using System;
 using System.IO;
 using System.Linq;
 using UnityEngine;
+using UnityEditor;
 
 
 #if UNITY_EDITOR
-using UnityEditor;
 public class FourdRecImporter : MonoBehaviour
 {
-    private const int TextureSize = 1024;
-    private const string SavePath = "Assets/Resources/fourd";
-    private const string AbPath = "Assets/StreamingAssets/fourd";
-
     [MenuItem("4DREC/Import 4DF file")]
     static void Import4dfFile()
     {
@@ -20,13 +16,22 @@ public class FourdRecImporter : MonoBehaviour
     
     static void ImportFolder()
     {
+        // Open folder
         string path = EditorUtility.OpenFolderPanel("Import 4DREC file", "", "");
         string shotName = Path.GetFileName(path);
         string[] files = Directory.GetFiles(path);
 
         if (files.Length == 0) return;
+
+        int textureSize = 1024;
         
-        Directory.CreateDirectory(SavePath);
+        // Create directories
+        Directory.CreateDirectory(FourdRecUtility.TempPath);
+        Directory.CreateDirectory(FourdRecUtility.AbPath);
+        Directory.CreateDirectory(FourdRecUtility.LoaderAbPath);
+        Directory.CreateDirectory(FourdRecUtility.LoaderAssetPath);
+        
+        // Create assets
         string[] assetPaths = new string[files.Length];
         for (int i = 0; i < files.Length; i++)
         {
@@ -36,19 +41,37 @@ public class FourdRecImporter : MonoBehaviour
                 file,
                 (float)i / files.Length
                 );
-            assetPaths[i] = Convert4DF(file);
+            assetPaths[i] = Convert4DF(file, textureSize);
+            // TODO Batch Ijob multi-threaded optimized
+            // Memory condition watch with buffer
+            // Playback system
+            // Editor restart will lose 4drec loader
+            // Texture channel swap
         }
         EditorUtility.ClearProgressBar();
-        
         AssetDatabase.Refresh();
         
+        // Turn asset to bundle
         BuildAssetBundle(assetPaths, shotName);
 
-        AssetDatabase.DeleteAsset(SavePath);
+        // Create loader
+        int startFrame = Int32.Parse(Path.GetFileNameWithoutExtension(assetPaths[0]));
+        int endFrame = Int32.Parse(Path.GetFileNameWithoutExtension(assetPaths[assetPaths.Length - 1]));
+        FourdRecLoader loader = ScriptableObject.CreateInstance<FourdRecLoader>();
+        loader.shotName = shotName;
+        loader.startFrame = startFrame;
+        loader.endFrame = endFrame;
+        loader.textureSize = textureSize;
+        string loaderPath = $"{FourdRecUtility.LoaderAbPath}/{shotName}.asset";
+        AssetDatabase.CreateAsset(loader, loaderPath);
+        AssetDatabase.SaveAssets();
+        AssetDatabase.CopyAsset(loaderPath, $"{FourdRecUtility.LoaderAssetPath}/{shotName}.asset");
+        
+        AssetDatabase.DeleteAsset(FourdRecUtility.TempPath);
         AssetDatabase.Refresh();
     }
 
-    static string Convert4DF(string importPath)
+    static string Convert4DF(string importPath, int textureSize)
     {
         // Get raw buffer
         byte[] fileBuffer = File.ReadAllBytes(importPath);
@@ -57,10 +80,18 @@ public class FourdRecImporter : MonoBehaviour
         Int32 textureCompressedSize = BitConverter.ToInt32(fileBuffer, 68);
 
         byte[] compressedGeoBuffer = new byte[geoCompressedSize];
-        Array.Copy(fileBuffer, 1024, compressedGeoBuffer, 0, geoCompressedSize);
+        Array.Copy(
+            fileBuffer, 1024, 
+            compressedGeoBuffer, 0, 
+            geoCompressedSize
+            );
 
         byte[] compressedTextureBuffer = new byte[textureCompressedSize];
-        Array.Copy(fileBuffer, 1024 + geoCompressedSize, compressedTextureBuffer, 0, textureCompressedSize);
+        Array.Copy(
+            fileBuffer, 1024 + geoCompressedSize,
+            compressedTextureBuffer,0, 
+            textureCompressedSize
+            );
         
         byte[] geoBuffer = lz4.Decompress(compressedGeoBuffer);
         
@@ -70,13 +101,21 @@ public class FourdRecImporter : MonoBehaviour
         byte[] uvBuffer = new byte[verticesArrayCount * 4 * 2];
         for (int i = 0; i < verticesArrayCount; i++)
         {
-            Array.Copy(geoBuffer, i * 4 * 5, positionBuffer, i * 4 * 3, 12);
-            Array.Copy(geoBuffer, i * 4 * 5 + 12, uvBuffer, i * 4 * 2, 8);
+            Array.Copy(
+                geoBuffer, i * 4 * 5, 
+                positionBuffer, i * 4 * 3, 
+                12
+                );
+            Array.Copy(
+                geoBuffer, i * 4 * 5 + 12, 
+                uvBuffer, i * 4 * 2, 
+                8
+                );
         }
 
         // UV modify
         Vector2[] uvArray = new Vector2[verticesArrayCount];
-        FourdUtility.ConvertFromBytes(uvBuffer, uvArray);
+        FourdRecUtility.ConvertFromBytes(uvBuffer, uvArray);
 
         for (int i = 0; i < verticesArrayCount; i++)
         {
@@ -86,7 +125,10 @@ public class FourdRecImporter : MonoBehaviour
         // Texture
         Texture2D sourceTexture = new Texture2D(2, 2);
         sourceTexture.LoadImage(compressedTextureBuffer);
-        TextureScale.Bilinear(sourceTexture, TextureSize, TextureSize);
+        if (textureSize != sourceTexture.width)
+        {
+            TextureScale.Bilinear(sourceTexture, textureSize, textureSize);
+        }
         sourceTexture.Compress(false);
         
         // Write
@@ -94,14 +136,13 @@ public class FourdRecImporter : MonoBehaviour
         byte[] textureData = sourceTexture.GetRawTextureData().ToArray();
 
         frame.verticesCount = verticesArrayCount;
-        frame.textureSize = TextureSize;
         frame.textureFormat = sourceTexture.format;
         frame.textureData = textureData;
         frame.uvDataArray = uvArray;
         frame.positionDataArray = new Vector3[verticesArrayCount];
-        FourdUtility.ConvertFromBytes(positionBuffer, frame.positionDataArray);
+        FourdRecUtility.ConvertFromBytes(positionBuffer, frame.positionDataArray);
 
-        string assetPath = $"{SavePath}/{Path.GetFileNameWithoutExtension(importPath)}.asset";
+        string assetPath = $"{FourdRecUtility.TempPath}/{Path.GetFileNameWithoutExtension(importPath)}.asset";
         AssetDatabase.CreateAsset(frame, assetPath);
         AssetDatabase.SaveAssets();
 
@@ -127,10 +168,8 @@ public class FourdRecImporter : MonoBehaviour
         bundleBuild.addressableNames = addressableNames;
         bundleBuild.assetNames = assetPaths;
 
-        Directory.CreateDirectory(AbPath);
-
         BuildPipeline.BuildAssetBundles(
-            AbPath,
+            FourdRecUtility.AbPath,
             new []{bundleBuild},
             BuildAssetBundleOptions.ChunkBasedCompression, 
             BuildTarget.StandaloneWindows
