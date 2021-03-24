@@ -1,16 +1,16 @@
 using UnityEngine;
 
-
-public class FourdRecFrame : ScriptableObject
+namespace _4drec
 {
-    [HideInInspector]
-    public int verticesCount;
-    [HideInInspector]
-    public TextureFormat textureFormat;
-    [HideInInspector]
-    public byte[] textureData;
-    [HideInInspector]
-    public Vector3[] positionDataArray;
-    [HideInInspector]
-    public Vector2[] uvDataArray;
+    public class FourdRecFrame : ScriptableObject
+    {
+        [HideInInspector]
+        public int verticesCount;
+        [HideInInspector]
+        public byte[] textureData;
+        [HideInInspector]
+        public Vector3[] positionArray;
+        [HideInInspector]
+        public Vector2[] uvArray;
+    }
 }
