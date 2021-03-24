@@ -1,4 +1,5 @@
 using System;
+using System.IO;
 using System.Runtime.InteropServices;
 using UnityEngine;
 
@@ -53,5 +54,23 @@ public static class FourdRecUtility
             Stop(prefix);
             Restart();
         }
+    }
+    
+    public static Texture2D Resize(ref Texture2D texture, int width, int height)
+    {
+        RenderTexture renderTexture = RenderTexture.GetTemporary(width, height);
+        RenderTexture.active = renderTexture;
+        Graphics.Blit(texture, renderTexture);
+        
+        Texture2D scaledTexture = new Texture2D(width, height, TextureFormat.RGB24, false);
+        scaledTexture.filterMode = FilterMode.Bilinear;
+        scaledTexture.wrapMode = TextureWrapMode.Clamp;
+        scaledTexture.ReadPixels(new Rect(0, 0, 1024, 1024), 0, 0);
+        scaledTexture.Apply();
+
+        RenderTexture.active = null;
+        RenderTexture.ReleaseTemporary(renderTexture);
+
+        return scaledTexture;
     }
 }
