@@ -225,23 +225,31 @@ namespace _4drec
                     break;
                 }
             }
-            if (!isFound) _assetBundle = AssetBundle.LoadFromFile($"{FourdRecUtility.AssetBundlePath}/{loader.shotName}");
+            if (!isFound) _assetBundle = AssetBundle.LoadFromFile(
+                $"{Application.streamingAssetsPath}/{FourdRecUtility.AssetBundleNameTag}/{loader.shotName}");
             _isAssignAssetBundle = true;
         }
 
-        private void Clean()
+        private void Clean(bool destroyComponent = true)
         {
             if (_assetBundle != null) _assetBundle.Unload(true);
             _assetBundle = null;
-            if (meshFilter != null)
+            if (destroyComponent)
             {
-                meshFilter.sharedMesh.Clear();
+                if (meshFilter != null)
+                {
+                    DestroyImmediate(meshFilter);
+                }
+                if (meshRenderer != null)
+                {
+                    DestroyImmediate(meshRenderer);
+                }
             }
         }
 
         private void OnDestroy()
         {
-            Clean();
+            Clean(false);
         }
     }
 }

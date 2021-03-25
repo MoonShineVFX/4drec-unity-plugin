@@ -6,9 +6,10 @@ namespace _4drec
 {
     public static class FourdRecUtility
     {
-        public const string TempPath = "Assets/Resources/TempFourdRec";
-        public const string AssetBundlePath = "Assets/StreamingAssets/FourdRec";
-        public const string LoaderAbPath = "Assets/StreamingAssets/FourdRec/loader";
+        public const string AssetBundleNameTag = "FourdRec";
+        public const string TempPath = "Assets/Resources/Temp" + AssetBundleNameTag;
+        public const string AssetBundlePath = "Assets/StreamingAssets/" + AssetBundleNameTag;
+        public const string LoaderAssetBundlePath = "Assets/StreamingAssets/" + AssetBundleNameTag + "/loader";
         public const string LoaderAssetPath = "Assets/4drecLoader";
     
         public static byte[] ConvertToBytes<T>(T source, int size)

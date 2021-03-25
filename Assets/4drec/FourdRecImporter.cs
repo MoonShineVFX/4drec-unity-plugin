@@ -13,28 +13,104 @@ namespace _4drec
 {
     public class FourdRecImporter : MonoBehaviour
     {
+        public class FourdRecImportDialog : EditorWindow
+        {
+            public string shotName = "shot name";
+            public string importFolderPath = "import path";
+            public BuildTarget buildTarget = BuildTarget.StandaloneWindows;
+            public int selectedTextureSize = 1024;
+            public string[] textureSizeDisplay = {"512x512", "1024x1024", "2048x2048", "4096x4096"};
+            public int[] textureSizeValue = { 512, 1024, 2048, 4096 };
+            public bool importConfirm = false;
+            public float width = 450;
+            public float height = 220;
+            public int framesCount = 0;
+            public int threadPoolSize = 100;
+
+            void OnGUI()
+            {
+                GUILayout.BeginVertical();
+                GUILayout.FlexibleSpace();
+                
+                var pathStyle = new GUIStyle(GUI.skin.label) {alignment = TextAnchor.MiddleCenter};
+                EditorGUILayout.LabelField(
+                    $"{framesCount} frames ({importFolderPath})",
+                    pathStyle, 
+                    GUILayout.ExpandWidth(true));
+                GUILayout.FlexibleSpace();
+                
+                shotName = EditorGUILayout.TextField("Shot Name: ", shotName);
+                GUILayout.FlexibleSpace();
+                
+                buildTarget = (BuildTarget) EditorGUILayout.EnumPopup("Build Target:", buildTarget);
+                GUILayout.FlexibleSpace();
+                
+                selectedTextureSize = EditorGUILayout.IntPopup(
+                    "Texture Resize:", selectedTextureSize, textureSizeDisplay, textureSizeValue);
+                GUILayout.FlexibleSpace();
+
+                threadPoolSize = EditorGUILayout.IntSlider(
+                    "Thread Pool Size", threadPoolSize, 4, 1000);
+                GUILayout.FlexibleSpace();
+                
+                if (GUILayout.Button("Import"))
+                {
+                    importConfirm = true;
+                    Close();
+                }
+                GUILayout.EndVertical();
+            }
+
+            public void PopUp(string shotName, string importFolderPath, int framesCount)
+            {
+                titleContent = new GUIContent("4DREC Import Setting");
+                this.shotName = shotName;
+                this.importFolderPath = importFolderPath;
+                this.framesCount = framesCount;
+                position = 
+                    new Rect(
+                        (Screen.currentResolution.width - width) / 2, 
+                        (Screen.currentResolution.height - height) / 2, 
+                        width, height);
+                ShowModal();
+            }
+        }
+        
         [MenuItem("4DREC/Import 4DF file")]
         private static void Import()
         {
+            FourdRecImportDialog dialog;
+            if (EditorWindow.HasOpenInstances<FourdRecImportDialog>())
+            {
+                dialog = EditorWindow.GetWindow<FourdRecImportDialog>();
+                dialog.Close();
+            }
+            
             // Open folder
             string importFolderPath = EditorUtility.OpenFolderPanel("Import 4DREC file", "", "");
             string shotName = Path.GetFileName(importFolderPath);
             string[] importFilePaths = Directory.GetFiles(importFolderPath);
-
+            
             if (importFilePaths.Length == 0) return;
-
+            
+            // Import Setting
+            dialog = EditorWindow.GetWindow<FourdRecImportDialog>();
+            dialog.PopUp(shotName, importFolderPath, importFilePaths.Length);
+            if (!dialog.importConfirm) return;
+            
             // Create directories
             Directory.CreateDirectory(FourdRecUtility.TempPath);
             Directory.CreateDirectory(FourdRecUtility.AssetBundlePath);
-            Directory.CreateDirectory(FourdRecUtility.LoaderAbPath);
+            Directory.CreateDirectory(FourdRecUtility.LoaderAssetBundlePath);
             Directory.CreateDirectory(FourdRecUtility.LoaderAssetPath);
         
             // Job define
+            shotName = dialog.shotName;
+            int textureResizeWidth = dialog.selectedTextureSize;
             const int textureOriginalWidth = 4096;
-            const int textureResizeWidth = 1024;
             const int maxMeshVerticesCount = 300000;
-            const int poolSize = 100;
             const int importPathMaxLength = 1024;
+            int poolSize = dialog.threadPoolSize;
             
             int importFilePathIndex = 0;
             int completedJobsCount = 0;
@@ -67,33 +143,6 @@ namespace _4drec
             // Execute
             while (completedJobsCount != importFilePaths.Length)
             {
-                // int remainImportFilePathsCount = importFilePaths.Length - completedJobsCount;
-                // int realPoolSize = remainImportFilePathsCount < poolSize ? remainImportFilePathsCount : poolSize;
-                //
-                // // Create jobs
-                // if (importFilePathIndex == 0)
-                // {
-                //     for (int i = 0; i < realPoolSize; i++)
-                //     {
-                //         string file = importFilePaths[importFilePathIndex];
-                //         importFilePathIndex++;
-                //         byte[] fileBytes = Encoding.UTF8.GetBytes(file);
-                //         var slice = new NativeSlice<byte>(importPathBytesCluster[i], 0, fileBytes.Length);
-                //         slice.CopyFrom(fileBytes);
-                //         importPathBytesCountCluster[i][0] = fileBytes.Length;
-                //         var job = new FourdRecDecompressJob()
-                //         {
-                //             ImportPathBytes = importPathBytesCluster[i],
-                //             PositionArray = positionArrayCluster[i],
-                //             VerticesCount = verticesCount[i],
-                //             UvArray = uvArrayCluster[i],
-                //             TextureColorArray = textureColorArrayCluster[i],
-                //             ImportPathBytesCount = importPathBytesCountCluster[i]
-                //         };
-                //         threadedJobs[i] = job.Schedule();
-                //     }
-                // }
-
                 // Complete jobs callback
                 for (int i = 0; i < threadedJobs.Length; i++)
                 {
@@ -181,8 +230,8 @@ namespace _4drec
             EditorUtility.ClearProgressBar();
         
             // Turn asset to bundle
-            BuildAssetBundle(generatedAssetPaths, shotName);
-        
+            BuildAssetBundle(generatedAssetPaths, shotName, dialog.buildTarget);
+
             // Create loader
             int startFrame = int.Parse(Path.GetFileNameWithoutExtension(generatedAssetPaths[0]));
             int endFrame = int.Parse(Path.GetFileNameWithoutExtension(generatedAssetPaths[generatedAssetPaths.Length - 1]));
@@ -192,7 +241,7 @@ namespace _4drec
             loader.endFrame = endFrame;
             loader.textureSize = textureResizeWidth;
             loader.textureFormat = TextureFormat.DXT1;
-            string loaderPath = $"{FourdRecUtility.LoaderAbPath}/{shotName}.asset";
+            string loaderPath = $"{FourdRecUtility.LoaderAssetBundlePath}/{shotName}.asset";
             AssetDatabase.CreateAsset(loader, loaderPath);
             AssetDatabase.SaveAssets();
             AssetDatabase.CopyAsset(loaderPath, $"{FourdRecUtility.LoaderAssetPath}/{shotName}.asset");
@@ -200,7 +249,7 @@ namespace _4drec
             AssetDatabase.Refresh();
         }
 
-        static void BuildAssetBundle(string[] assetPaths, string shotName)
+        static void BuildAssetBundle(string[] assetPaths, string shotName, BuildTarget buildTarget)
         {
             AssetBundleBuild bundleBuild = new AssetBundleBuild();
             bundleBuild.assetBundleName = shotName;
@@ -221,7 +270,7 @@ namespace _4drec
                 FourdRecUtility.AssetBundlePath,
                 new []{bundleBuild},
                 BuildAssetBundleOptions.ChunkBasedCompression, 
-                BuildTarget.StandaloneWindows);
+                buildTarget);
         }
 
         private struct FourdRecDecompressJob : IJob
