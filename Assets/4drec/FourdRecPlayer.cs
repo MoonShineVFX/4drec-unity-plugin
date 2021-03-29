@@ -28,6 +28,18 @@ namespace _4drec
             
                 if (player.hasLoader)
                 {
+                    // CustomMaterial
+                    Material nextMaterial = (Material)EditorGUILayout.ObjectField(
+                        "Custom Material", player.customMaterial, typeof(Material), false
+                    );
+            
+                    if (EditorGUI.EndChangeCheck() && nextMaterial != player.customMaterial)
+                    {
+                        player.ConnectMaterial(nextMaterial);
+                        EditorUtility.SetDirty(player);
+                    }
+                    
+                    // Current Frame
                     EditorGUI.BeginChangeCheck();
                     FourdRecLoader loader = player.loader;
                     int frame = EditorGUILayout.IntSlider(
@@ -53,6 +65,7 @@ namespace _4drec
         [HideInInspector] public int currentFrame;
         [HideInInspector] public bool hasLoader = false;
         [HideInInspector] public FourdRecLoader loader;
+        [HideInInspector] public Material customMaterial = null;
     
         [SerializeField, HideInInspector] private float frameDuration;
         [SerializeField, HideInInspector] private MeshRenderer meshRenderer;
@@ -64,6 +77,7 @@ namespace _4drec
         private float _deltaTime = 0f;
         private FourdRecFrame _lastFrame;
         private bool _hasLastFrame = true;
+        private Material _defaultMaterial = null;
     
         void Start()
         {
@@ -93,6 +107,17 @@ namespace _4drec
                 _deltaTime -= frameDuration;
                 PlayNextFrame();
             }
+        }
+
+        public void ConnectMaterial(Material material)
+        {
+            if (customMaterial != null)
+            {
+                customMaterial.mainTexture = null;
+            }
+            customMaterial = material;
+            Initialize();
+            UpdateMesh();
         }
 
         public void ConnectLoader(FourdRecLoader nextLoader)
@@ -172,6 +197,7 @@ namespace _4drec
         {
             if (!_isAssignAssetBundle) AssignAssetBundle();
 
+            // Mesh Renderer
             bool emptyMeshRenderer = meshRenderer == null;
             var meshRenderComponent = gameObject.GetComponent<MeshRenderer>();
             bool emptyMeshRenderComponent = meshRenderComponent == null;
@@ -180,20 +206,22 @@ namespace _4drec
                 if (emptyMeshRenderComponent)
                 {
                     meshRenderer = gameObject.AddComponent<MeshRenderer>();
-                    meshRenderer.sharedMaterial = new Material(Shader.Find("Unlit/Texture"));
-                    Texture2D texture = new Texture2D(
-                        loader.textureSize, loader.textureSize,
-                        loader.textureFormat, false
-                    );
-                    meshRenderer.sharedMaterial.mainTexture = texture;
                 }
                 else
                 {
                     meshRenderer = meshRenderComponent;
                 }
-            
             }
+            // Material assignment
+            if (_defaultMaterial == null) _defaultMaterial = new Material(Shader.Find("Unlit/Texture"));
+            meshRenderer.sharedMaterial = customMaterial == null ? _defaultMaterial : customMaterial;
+            Texture2D texture = new Texture2D(
+                loader.textureSize, loader.textureSize,
+                loader.textureFormat, false
+            );
+            meshRenderer.sharedMaterial.mainTexture = texture;
         
+            // Mesh Filter
             bool emptyMeshFilter = meshFilter == null;
             var meshFilterComponent = gameObject.GetComponent<MeshFilter>();
             bool emptyMeshFilterComponent = meshFilterComponent == null;
